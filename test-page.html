@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>插件功能测试页</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #ecfeff 100%);
+    min-height: 100vh;
+    color: #1f2937;
+    padding: 24px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header h1 { font-size: 22px; margin-bottom: 6px; }
+  header p { font-size: 13px; color: #64748b; margin-bottom: 18px; }
+
+  .layout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  main { flex: 1 1 640px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  aside { flex: 0 0 300px; position: sticky; top: 24px; }
+
+  .zone {
+    background: #fff; border-radius: 16px; padding: 16px;
+    box-shadow: 0 4px 16px rgba(31, 41, 55, .08);
+  }
+  .zone-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+
+  /* ---------- 方块区 ---------- */
+  .drag-row { display: flex; gap: 24px; align-items: stretch; }
+  .squares {
+    flex: 1; min-height: 130px; border-radius: 12px;
+    border: 2px dashed #e2e8f0; background: #f8fafc;
+    display: flex; align-items: center; justify-content: space-around; padding: 16px;
+  }
+  .square {
+    width: 64px; height: 64px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 20px; font-weight: 700; user-select: none;
+    cursor: grab; box-shadow: 0 6px 14px rgba(31, 41, 55, .18);
+    touch-action: none;
+  }
+  .square.dragging { position: fixed; cursor: grabbing; z-index: 999; box-shadow: 0 12px 28px rgba(31,41,55,.3); }
+  .square.shake { animation: shake .35s ease; }
+  @keyframes shake { 0%,100% { margin-left: 0 } 25% { margin-left: -5px } 75% { margin-left: 5px } }
+
+  .trash {
+    width: 130px; border-radius: 12px; border: 2px dashed #cbd5e1;
+    background: #f8fafc; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    transition: all .2s ease;
+  }
+  .trash .trash-icon { font-size: 34px; }
+  .trash .trash-label { font-size: 12px; color: #64748b; }
+  .trash .trash-count { font-size: 12px; color: #16a34a; font-weight: 600; }
+  .trash.hot { border-color: #16a34a; background: #f0fdf4; transform: scale(1.06); }
+
+  /* ---------- 泡泡区 ---------- */
+  .bubbles {
+    position: relative; height: 420px; border-radius: 12px;
+    border: 2px dashed #e2e8f0; overflow: hidden;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(191, 219, 254, .35), transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(253, 230, 138, .3), transparent 45%),
+      #fbfdff;
+  }
+  .bubble {
+    position: absolute; border-radius: 50%; cursor: pointer;
+    box-shadow: inset -6px -10px 16px rgba(0,0,0,.06), inset 4px 6px 10px rgba(255,255,255,.65), 0 4px 10px rgba(31,41,55,.12);
+    transition: transform .3s ease, opacity .3s ease;
+    animation: bob 3s ease-in-out infinite alternate;
+  }
+  .bubble::after {
+    content: ""; position: absolute; left: 22%; top: 16%;
+    width: 26%; height: 18%; border-radius: 50%;
+    background: rgba(255,255,255,.85); filter: blur(1px);
+  }
+  .bubble.popped { transform: scale(1.55); opacity: 0; }
+  @keyframes bob { from { margin-top: 0 } to { margin-top: -14px } }
+
+  /* ---------- 统计与按钮 ---------- */
+  .stats {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    background: #fff; border-radius: 16px; padding: 12px 16px;
+    box-shadow: 0 4px 16px rgba(31,41,55,.08); font-size: 13px; color: #475569;
+  }
+  .stats b { color: #0f172a; }
+  .stats button {
+    margin-left: auto; padding: 6px 14px; border: 1px solid #e2e8f0;
+    border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #334155;
+  }
+  .stats button:hover { background: #f1f5f9; }
+
+  /* ---------- 日志 ---------- */
+  .log {
+    background: #fff; border-radius: 16px; padding: 10px;
+    box-shadow: 0 4px 16px rgba(31,41,55,.08);
+    height: 560px; overflow-y: auto; font-size: 12px; line-height: 1.9;
+  }
+  .log-entry { color: #475569; border-bottom: 1px solid #f1f5f9; padding: 2px 6px; word-break: break-all; }
+  .log-entry:first-child { background: #f0fdf4; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧪 插件功能测试页</h1>
+    <p>「拖拽点击」：拾取起点（方块上）和终点（垃圾桶里），按键重放拖拽 · 「区域点击」：框选一片区域，区域内泡泡按 5px 间距被逐点点破 · 「放大镜」：随处开启放大实时画面</p>
+  </header>
+
+  <div class="layout">
+    <main>
+      <section class="zone">
+        <div class="zone-title">方块区 · 用「拖拽点击」把方块拖进垃圾桶</div>
+        <div class="drag-row">
+          <div class="squares" id="squares"></div>
+          <div class="trash" id="trash">
+            <div class="trash-icon">🗑️</div>
+            <div class="trash-label">垃圾桶</div>
+            <div class="trash-count">已收 <span id="trashedCount">0</span> / 4</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="zone">
+        <div class="zone-title">泡泡区 · 用「区域点击」框选即可点破区域内的泡泡</div>
+        <div class="bubbles" id="bubbles"></div>
+      </section>
+
+      <div class="stats">
+        <span>已进垃圾桶：<b id="trashedCount2">0</b> / 4</span>
+        <span>已点破泡泡：<b id="poppedCount">0</b> / <b id="totalBubbles">0</b></span>
+        <button id="resetSquares">重置方块</button>
+        <button id="resetBubbles">重置泡泡</button>
+      </div>
+    </main>
+
+    <aside>
+      <div class="zone-title">事件日志（实时）</div>
+      <div class="log" id="log"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const squaresEl = $('squares'), trashEl = $('trash'), bubblesEl = $('bubbles'), logEl = $('log');
+
+  // ---------- 日志 ----------
+  function log(msg) {
+    const t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.textContent = `[${t}] ${msg}`;
+    logEl.prepend(div);
+    while (logEl.children.length > 80) logEl.lastChild.remove();
+  }
+
+  // ---------- 方块：pointer 拖拽（兼容 CDP 合成鼠标事件） ----------
+  const SQUARES = [
+    { id: 'A', color: '#f97316' },
+    { id: 'B', color: '#3b82f6' },
+    { id: 'C', color: '#22c55e' },
+    { id: 'D', color: '#a855f7' },
+  ];
+  let trashed = 0;
+
+  function updateTrashCount() {
+    $('trashedCount').textContent = trashed;
+    $('trashedCount2').textContent = trashed;
+  }
+
+  function hitTrash(x, y) {
+    const r = trashEl.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+
+  function renderSquares() {
+    squaresEl.innerHTML = '';
+    trashed = 0;
+    updateTrashCount();
+    for (const s of SQUARES) {
+      const sq = document.createElement('div');
+      sq.className = 'square';
+      sq.style.background = s.color;
+      sq.textContent = s.id;
+      sq.dataset.id = s.id;
+      sq.addEventListener('pointerdown', (e) => {
+        if (sq.dataset.done) return;
+        e.preventDefault();
+        const startRect = sq.getBoundingClientRect();
+        const offX = e.clientX - startRect.left;
+        const offY = e.clientY - startRect.top;
+
+        sq.setPointerCapture(e.pointerId);
+        sq.classList.add('dragging');
+        sq.style.width = startRect.width + 'px';
+        sq.style.height = startRect.height + 'px';
+        sq.style.left = startRect.left + 'px';
+        sq.style.top = startRect.top + 'px';
+        log(`🖱️ 方块${s.id} 拖拽开始 (${Math.round(e.clientX)}, ${Math.round(e.clientY)})`);
+
+        const onMove = (ev) => {
+          sq.style.left = ev.clientX - offX + 'px';
+          sq.style.top = ev.clientY - offY + 'px';
+          trashEl.classList.toggle('hot', hitTrash(ev.clientX, ev.clientY));
+        };
+        const onUp = (ev) => {
+          sq.removeEventListener('pointermove', onMove);
+          sq.classList.remove('dragging');
+          trashEl.classList.remove('hot');
+          if (hitTrash(ev.clientX, ev.clientY)) {
+            const tr = trashEl.getBoundingClientRect();
+            sq.style.transition = 'left .25s ease, top .25s ease, transform .25s ease, opacity .25s ease';
+            sq.style.left = tr.left + tr.width / 2 - startRect.width / 2 + 'px';
+            sq.style.top = tr.top + tr.height / 2 - startRect.height / 2 + 'px';
+            sq.style.transform = 'scale(.15) rotate(25deg)';
+            sq.style.opacity = '0';
+            sq.dataset.done = '1';
+            trashed++;
+            updateTrashCount();
+            log(`📦 方块${s.id} 已投入垃圾桶 (${Math.round(ev.clientX)}, ${Math.round(ev.clientY)})`);
+            setTimeout(() => sq.remove(), 300);
+          } else {
+            log(`↩️ 方块${s.id} 未投进垃圾桶，弹回原位 (${Math.round(ev.clientX)}, ${Math.round(ev.clientY)})`);
+            sq.classList.add('shake');
+            setTimeout(() => sq.classList.remove('shake'), 400);
+          }
+        };
+        sq.addEventListener('pointermove', onMove);
+        sq.addEventListener('pointerup', onUp, { once: true });
+        sq.addEventListener('pointercancel', onUp, { once: true });
+      });
+      squaresEl.appendChild(sq);
+    }
+  }
+
+  // ---------- 泡泡：点击点破（区域点击 = 高频 pointerdown） ----------
+  let popped = 0, total = 0;
+
+  function updateBubbleCount() {
+    $('poppedCount').textContent = popped;
+    $('totalBubbles').textContent = total;
+  }
+
+  function spawnBubbles(n = 26) {
+    bubblesEl.innerHTML = '';
+    popped = 0;
+    total = n;
+    updateBubbleCount();
+    for (let i = 0; i < n; i++) {
+      const size = 36 + Math.random() * 30;
+      const hue = Math.floor(Math.random() * 360);
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      b.dataset.i = i + 1;
+      b.style.width = b.style.height = size + 'px';
+      b.style.left = 2 + Math.random() * 90 + '%';
+      b.style.top = 2 + Math.random() * 86 + '%';
+      b.style.background = `radial-gradient(circle at 30% 28%, rgba(255,255,255,.9), hsl(${hue} 90% 78%), hsl(${hue} 85% 58%))`;
+      b.style.animationDuration = (2.6 + Math.random() * 2.2) + 's';
+      b.style.animationDelay = (Math.random() * 2) + 's';
+      b.addEventListener('pointerdown', (e) => {
+        if (b.dataset.popped) return;
+        b.dataset.popped = '1';
+        popped++;
+        updateBubbleCount();
+        b.classList.add('popped');
+        log(`🫧 泡泡 #${b.dataset.i} 在 (${Math.round(e.clientX)}, ${Math.round(e.clientY)}) 被点破`);
+        setTimeout(() => b.remove(), 350);
+      });
+      bubblesEl.appendChild(b);
+    }
+    log(`✨ 已生成 ${n} 个泡泡`);
+  }
+
+  // ---------- 重置 ----------
+  $('resetSquares').addEventListener('click', () => { renderSquares(); log('🔄 方块已重置'); });
+  $('resetBubbles').addEventListener('click', () => spawnBubbles());
+
+  renderSquares();
+  spawnBubbles();
+  log('🚀 测试页已就绪，等待插件操作…');
+
+  // ---------- 插件自动配置坐标接口 ----------
+  // content script 检测到 URL 匹配 test-page.html 时会读这个函数写一套快捷键组，
+  // 坐标实时计算，返回 page 坐标系（client + scroll）。
+  window.__DS_TEST_COORDS__ = function () {
+    const scrollX = window.scrollX || window.pageXOffset || 0;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    // 拖拽：第一个方块 → 垃圾桶中心
+    const firstSquare = document.querySelector('#squares .square');
+    const trash = document.getElementById('trash');
+    const drag = firstSquare && trash ? (() => {
+      const s = firstSquare.getBoundingClientRect();
+      const t = trash.getBoundingClientRect();
+      return {
+        start: { x: s.left + s.width / 2 + scrollX, y: s.top + s.height / 2 + scrollY },
+        end:   { x: t.left + t.width / 2 + scrollX, y: t.top + t.height / 2 + scrollY },
+      };
+    })() : null;
+
+    // 区域点击：覆盖整个泡泡区
+    const bubbles = document.getElementById('bubbles');
+    const area = bubbles ? (() => {
+      const r = bubbles.getBoundingClientRect();
+      return {
+        x: r.left + scrollX,
+        y: r.top + scrollY,
+        width: r.width,
+        height: r.height,
+      };
+    })() : null;
+
+    if (drag) log(`🎯 测试坐标已就绪：拖拽 (${Math.round(drag.start.x)},${Math.round(drag.start.y)}) → (${Math.round(drag.end.x)},${Math.round(drag.end.y)}) · 快捷键 q`);
+    if (area) log(`🎯 测试坐标已就绪：区域 ${Math.round(area.width)}×${Math.round(area.height)} · 快捷键 w`);
+
+    return { drag, area };
+  };
+
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "browser_keywords_extension",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Chrome-only keyboard-driven browser automation extension: replay drags and clicks by hotkey, auto-click regions or points, and magnify page content in real time — designed to keep growing with more productivity shortcuts.",
+  "author": "yeminxuan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yeminxuan/browser_keywords_extension.git"
+  },
+  "homepage": "https://github.com/yeminxuan/browser_keywords_extension#readme",
+  "scripts": {
+    "build": "vite build -c vite.content.config.ts && vite build -c vite.background.config.ts",
+    "dev": "vite build -c vite.content.config.ts --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.28",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2"
+  }
+}
