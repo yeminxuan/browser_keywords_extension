@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "拖拽快捷键",
+  "name": "browser_keywords_extension",
   "version": "1.0.0",
   "description": "在网页上拾取起点和终点，按字母键自动模拟拖拽或点击。",
   "permissions": ["storage", "debugger", "scripting", "activeTab"],
@@ -10,7 +10,19 @@
     "type": "module"
   },
   "action": {
-    "default_title": "拖拽快捷键"
+    "default_title": "browser_keywords_extension",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "content_scripts": [
     {

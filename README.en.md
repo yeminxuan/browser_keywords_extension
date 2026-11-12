@@ -2,6 +2,10 @@
 
 # browser_keywords_extension
 
+<p align="center">
+  <img src="public/icons/icon128.png" width="96" height="96" alt="browser_keywords_extension icon">
+</p>
+
 A keyboard-driven Chrome extension that binds repetitive actions — dragging, clicking, magnifying — to a single key so you can replay them instantly. Configurations are stored per tab, and more shortcuts are planned.
 
 ## Features

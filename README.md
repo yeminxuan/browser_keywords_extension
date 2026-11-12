@@ -2,6 +2,10 @@
 
 # browser_keywords_extension
 
+<p align="center">
+  <img src="public/icons/icon128.png" width="96" height="96" alt="browser_keywords_extension icon">
+</p>
+
 一个快捷键驱动的 Chrome 扩展：把「拖拽 / 点击 / 放大查看」这些重复动作绑定到单个按键上，按一下就能复现。所有配置按标签页独立保存，后续还会继续补充更多快捷功能。
 
 ## 功能
