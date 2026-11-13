@@ -13,6 +13,7 @@ import { simulateClick, simulateDrag, sleep } from './drag';
 import { panelStyles } from './styles';
 import { Magnifier } from './magnifier';
 import { ColorPicker } from './color-picker';
+import { RulerTool } from './ruler';
 
 const HOST_ID = 'drag-shortcut-root';
 const PANEL_WIDTH = 344;
@@ -33,6 +34,7 @@ const TAB_LABELS: Record<ShortcutType, string> = {
   point: '定点点击',
   loupe: '放大镜',
   picker: '取色',
+  ruler: '标尺测距',
 };
 
 const EMPTY_TEXT: Record<ShortcutType, string> = {
@@ -41,6 +43,7 @@ const EMPTY_TEXT: Record<ShortcutType, string> = {
   point: '还没有定点点击，点击上方按钮拾取位置',
   loupe: '还没有放大镜快捷键，录一个按键即可随时开关放大镜',
   picker: '还没有取色快捷键，录一个按键即可随时拾取鼠标位置的颜色',
+  ruler: '还没有标尺快捷键，录一个按键即可进入标尺测距模式',
 };
 
 interface GroupDraft {
@@ -131,6 +134,7 @@ class DragShortcutApp {
   private tabId: number | null = null;
   private magnifier: Magnifier | null = null;
   private picker: ColorPicker | null = null;
+  private ruler: RulerTool | null = null;
 
   constructor() {
     this.host = document.createElement('div');
@@ -166,6 +170,8 @@ class DragShortcutApp {
         void this.saveSettings();
       },
     });
+
+    this.ruler = new RulerTool();
 
     this.root.append(this.overlay, this.highlight, this.tip, this.panel, this.toastEl);
     document.documentElement.appendChild(this.host);
@@ -455,6 +461,8 @@ class DragShortcutApp {
         return '＋ 新建放大镜快捷键（录键即可）';
       case 'picker':
         return '＋ 新建取色快捷键（录键即可）';
+      case 'ruler':
+        return '＋ 新建标尺快捷键（录键即可）';
     }
   }
 
@@ -477,8 +485,8 @@ class DragShortcutApp {
   private groupCardHtml(group: ShortcutGroup): string {
     const id = escapeHtml(group.id);
     const chips: string[] = [];
-    if (group.type === 'loupe' || group.type === 'picker') {
-      // 放大镜 / 取色不需要坐标编辑按钮
+    if (group.type === 'loupe' || group.type === 'picker' || group.type === 'ruler') {
+      // 放大镜 / 取色 / 标尺不需要坐标编辑按钮
     } else if (group.type === 'drag') {
       if (!group.dragFromCursor) {
         chips.push(`<button data-action="pick-start" data-id="${id}">改起点</button>`);
@@ -525,6 +533,9 @@ class DragShortcutApp {
     }
     if (group.type === 'picker') {
       return '取色 · 移动鼠标预览，点击复制 HEX';
+    }
+    if (group.type === 'ruler') {
+      return '标尺 · 拖拽测距，多标尺并存';
     }
     if (group.type === 'drag') {
       if (!group.end) return '坐标未完成';
@@ -762,6 +773,28 @@ class DragShortcutApp {
         event.preventDefault();
         event.stopPropagation();
         this.picker.close();
+      }
+      return;
+    }
+
+    // 标尺模式打开时：再按一次它的快捷键退出；其余按键（旋转/复制/单位等）交给标尺自己处理
+    if (this.ruler?.isOpen) {
+      const key = normalizeKey(event);
+      const rulerKeys = new Set(
+        this.store.groups.filter((item) => item.enabled && item.type === 'ruler').map((item) => item.key),
+      );
+      if (
+        key &&
+        rulerKeys.has(key) &&
+        !event.repeat &&
+        !event.isComposing &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.ruler.close();
       }
       return;
     }
@@ -1067,7 +1100,7 @@ class DragShortcutApp {
 
   private isDraftComplete(draft: GroupDraft): boolean {
     if (!draft.key) return false;
-    if (draft.type === 'loupe' || draft.type === 'picker') return true;
+    if (draft.type === 'loupe' || draft.type === 'picker' || draft.type === 'ruler') return true;
     if (draft.type === 'drag') {
       if (draft.dragFromCursor) return Boolean(draft.end);
       return Boolean(draft.start && draft.end);
@@ -1287,6 +1320,13 @@ class DragShortcutApp {
     if (group.type === 'picker') {
       if (this.running || this.picking || this.wizard) return;
       await this.openPicker();
+      return;
+    }
+
+    // 标尺也是交互式开关，不走 running 流程
+    if (group.type === 'ruler') {
+      if (this.running || this.picking || this.wizard) return;
+      this.ruler?.toggle();
       return;
     }
 

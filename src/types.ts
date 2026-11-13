@@ -10,7 +10,7 @@ export interface Rect {
   height: number;
 }
 
-export type ShortcutType = 'drag' | 'point' | 'area' | 'loupe' | 'picker';
+export type ShortcutType = 'drag' | 'point' | 'area' | 'loupe' | 'picker' | 'ruler';
 
 export interface ShortcutGroup {
   id: string;
