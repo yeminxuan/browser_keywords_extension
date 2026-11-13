@@ -9,6 +9,10 @@
  *   2. 每帧只在 requestAnimationFrame 里改 transform（translate + scale），
  *      纯合成层位移，60fps 跟手，没有截图延迟、没有闪烁、也不会把自己拍进去。
  *   3. 鼠标下方那个点在镜片里仍落在鼠标处 —— 和实体放大镜的手感一致。
+ *   4. 副本是按当前页面重新排版的，浏览器缩放不是 100%（或站点自带 CSS zoom、
+ *      系统显示比例带小数）时，副本 1px 并不严格等于页面 1px。因此每次重建后
+ *      都用探针实测「副本 px → 页面 px」的真实比例，坐标换算全部走实测值，
+ *      否则放大后会越偏离中心越不准。
  *
  * 已知边界：canvas / video 画面不会被复刻（cloneNode 不复制位图），
  * 其余 DOM、图片、CSS 动画都是实时的。
@@ -38,6 +42,10 @@ export class Magnifier {
   /** 打开时 <body> 边框盒在文档坐标系里的原点 */
   private bodyDocX = 0;
   private bodyDocY = 0;
+
+  /** 实测比例：副本 1px 对应多少页面 px（浏览器缩放 / CSS zoom 下不一定是 1） */
+  private calX = 1;
+  private calY = 1;
 
   private observer: MutationObserver | null = null;
   private dirty = false;
@@ -117,8 +125,9 @@ export class Magnifier {
   };
 
   private onViewportChange = (): void => {
-    // 滚动/缩放后 <body> 在文档里的原点可能变化，重建一次保证坐标正确
+    // 滚动/缩放后 <body> 在文档里的原点和副本的排版比例都可能变化，立即重建（下一帧）
     this.dirty = true;
+    this.lastBuild = 0;
   };
 
   // ---------- DOM ----------
@@ -146,18 +155,28 @@ export class Magnifier {
       `width:${LENS}px`,
       `height:${LENS}px`,
       'border-radius:16px',
-      'border:2px solid rgba(22,119,255,.9)',
       'overflow:hidden',
       'pointer-events:none',
       'background:#fff',
-      'box-shadow:0 10px 30px rgba(15,23,42,.35),inset 0 0 0 1px rgba(255,255,255,.5)',
+      'box-shadow:0 10px 30px rgba(15,23,42,.35)',
     ].join(';');
 
     const stage = document.createElement('div');
     stage.className = 'ds-mag-stage';
     stage.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none;';
 
-    lens.appendChild(stage);
+    // 边框单独画一层：如果用 border，镜片内容区会内缩 2px，坐标换算整体偏移
+    const ring = document.createElement('div');
+    ring.style.cssText = [
+      'position:absolute',
+      'inset:0',
+      'border-radius:16px',
+      'border:2px solid rgba(22,119,255,.9)',
+      'box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)',
+      'pointer-events:none',
+    ].join(';');
+
+    lens.append(stage, ring);
     root.append(guard, lens);
     document.documentElement.appendChild(root);
 
@@ -199,6 +218,8 @@ export class Magnifier {
       'user-select:none',
       'will-change:transform',
       `width:${bodyRect.width}px`,
+      // 显式给高度：否则副本里的 `height:100%` 会相对 auto 高度解析，整块内容纵向错位
+      `height:${bodyRect.height}px`,
     ].join(';');
 
     stage.replaceChildren(copy);
@@ -208,12 +229,58 @@ export class Magnifier {
     copy.scrollTop = body.scrollTop;
     copy.scrollLeft = body.scrollLeft;
 
+    this.calibrate();
+
     this.lastBuild = performance.now();
     this.lastCost = this.lastBuild - started;
     this.dirty = false;
     // 丢弃重建过程中产生的变更记录，避免自己触发自己的刷新
     this.observer?.takeRecords();
     this.position();
+  }
+
+  /**
+   * 实测副本的排版比例：副本里的 1px 实际渲染成多少页面 px。
+   * 正常页面为 1；浏览器缩放、站点 CSS zoom、系统小数显示比例下可能不是 1。
+   */
+  private calibrate(): void {
+    const clone = this.clone;
+    if (!clone) return;
+
+    const prev = clone.style.transform;
+    clone.style.transform = 'none';
+
+    const probe = (x: number, y: number): DOMRect => {
+      const el = document.createElement('div');
+      el.style.cssText = [
+        'position:absolute !important',
+        `left:${x}px !important`,
+        `top:${y}px !important`,
+        'width:1px !important',
+        'height:1px !important',
+        'margin:0 !important',
+        'padding:0 !important',
+        'border:0 !important',
+        'visibility:hidden !important',
+        'pointer-events:none !important',
+      ].join(';');
+      clone.appendChild(el);
+      const rect = el.getBoundingClientRect();
+      el.remove();
+      return rect;
+    };
+
+    const CAL = 200;
+    const origin = probe(0, 0);
+    const alongX = probe(CAL, 0);
+    const alongY = probe(0, CAL);
+
+    clone.style.transform = prev;
+
+    const sx = (alongX.left - origin.left) / CAL;
+    const sy = (alongY.top - origin.top) / CAL;
+    this.calX = Number.isFinite(sx) && Math.abs(sx) > 0.05 ? sx : 1;
+    this.calY = Number.isFinite(sy) && Math.abs(sy) > 0.05 ? sy : 1;
   }
 
   // ---------- 每帧 ----------
@@ -248,12 +315,14 @@ export class Magnifier {
     // 鼠标下方那个点在文档坐标系里的位置
     const cursorX = this.mx + window.scrollX;
     const cursorY = this.my + window.scrollY;
-    const localX = cursorX - this.bodyDocX;
-    const localY = cursorY - this.bodyDocY;
+
+    // 换算到副本自己的坐标系（副本 px = 页面 px / cal）
+    const localX = (cursorX - this.bodyDocX) / this.calX;
+    const localY = (cursorY - this.bodyDocY) / this.calY;
 
     // 把它映射到「鼠标在镜片里的位置」→ 放大后的画面正好压在原内容上
-    const tx = this.mx - left - localX * this.zoom;
-    const ty = this.my - top - localY * this.zoom;
+    const tx = (this.mx - left) / this.calX - localX * this.zoom;
+    const ty = (this.my - top) / this.calY - localY * this.zoom;
     clone.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${this.zoom})`;
   }
 }
