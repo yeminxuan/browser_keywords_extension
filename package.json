@@ -1,8 +1,9 @@
 {
   "name": "browser_keywords_extension",
-  "private": true,
+  "private": false,
   "version": "1.0.0",
   "type": "module",
+  "license": "MIT",
   "description": "Chrome-only keyboard-driven browser automation extension: replay drags and clicks by hotkey, auto-click regions or points, and magnify page content in real time — designed to keep growing with more productivity shortcuts.",
   "author": "yeminxuan",
   "repository": {
