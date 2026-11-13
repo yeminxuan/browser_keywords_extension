@@ -11,7 +11,7 @@ import {
 } from '../types';
 import { simulateClick, simulateDrag, sleep } from './drag';
 import { panelStyles } from './styles';
-import { Magnifier } from './magnifier';
+import { Magnifier, type MagnifierMode } from './magnifier';
 import { ColorPicker } from './color-picker';
 import { RulerTool } from './ruler';
 
@@ -181,6 +181,7 @@ class DragShortcutApp {
     this.bindEvents();
     await this.initStore();
     this.magnifier?.setZoom(this.store.settings.magnifierZoom);
+    this.magnifier?.setMode(this.store.settings.magnifierMode as MagnifierMode);
     this.applyInitialPanelPosition();
     this.render();
     await this.ensureTestPageSetup();
@@ -363,6 +364,7 @@ class DragShortcutApp {
       if (changes[settingsKey]) {
         this.store.settings = { ...DEFAULT_SETTINGS, ...(changes[settingsKey].newValue ?? {}) };
         this.magnifier?.setZoom(this.store.settings.magnifierZoom);
+        this.magnifier?.setMode(this.store.settings.magnifierMode as MagnifierMode);
         this.render();
       }
     });
@@ -408,7 +410,14 @@ class DragShortcutApp {
     const loupeSettings =
       active === 'loupe'
         ? `
-        <label class="ds-row"><span>放大倍数（1.2 – 6）</span><input type="number" name="magnifierZoom" step="0.1" min="1.2" max="6" value="${settings.magnifierZoom}" /></label>`
+        <label class="ds-row"><span>放大模式</span>
+          <select name="magnifierMode">
+            <option value="dom" ${settings.magnifierMode === 'dom' ? 'selected' : ''}>DOM 镜像（60fps 实时）</option>
+            <option value="screenshot" ${settings.magnifierMode === 'screenshot' ? 'selected' : ''}>截图（支持 video/canvas）</option>
+          </select>
+        </label>
+        <label class="ds-row"><span>放大倍数（1.2 – 6）</span><input type="number" name="magnifierZoom" step="0.1" min="1.2" max="6" value="${settings.magnifierZoom}" /></label>
+        ${settings.magnifierMode === 'screenshot' ? `<div class="ds-hint" style="margin:-6px 0 8px 4px;">截图模式会冻结画面；滚动时自动重新截图。</div>` : ''}`
         : '';
 
     const pickerSettings =
@@ -636,7 +645,7 @@ class DragShortcutApp {
 
   private onPanelChange = (event: Event): void => {
     const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
+    if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLSelectElement)) return;
 
     if (input.dataset.action === 'group-duration') {
       void this.updateGroupDuration(input.dataset.id ?? '', input.value);
@@ -650,16 +659,24 @@ class DragShortcutApp {
       case 'areaStep':
       case 'clickInterval':
       case 'pickerZoom':
-        void this.updateNumberSetting(input.name, input);
+        void this.updateNumberSetting(input.name as 'duration', input as HTMLInputElement);
         break;
       case 'magnifierZoom':
-        void this.updateZoom(input);
+        void this.updateZoom(input as HTMLInputElement);
         break;
+      case 'magnifierMode': {
+        const mode = input.value === 'screenshot' ? 'screenshot' : 'dom';
+        this.store.settings.magnifierMode = mode;
+        this.magnifier?.setMode(mode);
+        void this.saveSettings();
+        this.render();
+        break;
+      }
       case 'highCompat':
-        void this.updateBooleanSetting('highCompat', input.checked);
+        void this.updateBooleanSetting('highCompat', (input as HTMLInputElement).checked);
         break;
       case 'allEnabled':
-        void this.updateBooleanSetting('allEnabled', input.checked);
+        void this.updateBooleanSetting('allEnabled', (input as HTMLInputElement).checked);
         break;
       default:
         break;
@@ -1309,9 +1326,17 @@ class DragShortcutApp {
   private async runGroup(group: ShortcutGroup, isTest: boolean): Promise<void> {
     // 放大镜是 toggle 开关，不走阻塞的 running 流程
     if (group.type === 'loupe') {
-      this.magnifier?.toggle();
-      if (isTest) {
-        this.toast(this.magnifier?.isOpen ? '放大镜已开启（再次按键或 ESC 关闭）' : '放大镜已关闭');
+      if (!this.magnifier) return;
+      if (this.magnifier.isOpen) {
+        this.magnifier.close();
+        if (isTest) this.toast('放大镜已关闭');
+        return;
+      }
+      try {
+        await this.magnifier.open();
+        if (isTest) this.toast('放大镜已开启（再次按键或 ESC 关闭）');
+      } catch (error) {
+        this.toast(`放大镜失败：${error instanceof Error ? error.message : String(error)}`);
       }
       return;
     }

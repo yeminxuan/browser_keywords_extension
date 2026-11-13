@@ -48,6 +48,8 @@ export interface Settings {
   allEnabled: boolean;
   /** 放大镜倍数 */
   magnifierZoom: number;
+  /** 放大镜模式：dom=DOM 镜像（60fps 实时），screenshot=截图（可放大 video/canvas） */
+  magnifierMode: 'dom' | 'screenshot';
   /** 取色器默认放大倍数（取色时可用 +/- 临时调整并回写） */
   pickerZoom: number;
   /** 当前激活的功能 tab，持久化保存 */
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   highCompat: false,
   allEnabled: true,
   magnifierZoom: 2.4,
+  magnifierMode: 'dom',
   pickerZoom: 6,
   activeTab: 'drag',
   panel: null,
