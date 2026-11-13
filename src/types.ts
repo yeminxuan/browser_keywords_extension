@@ -10,7 +10,7 @@ export interface Rect {
   height: number;
 }
 
-export type ShortcutType = 'drag' | 'point' | 'area' | 'loupe';
+export type ShortcutType = 'drag' | 'point' | 'area' | 'loupe' | 'picker';
 
 export interface ShortcutGroup {
   id: string;
@@ -48,6 +48,8 @@ export interface Settings {
   allEnabled: boolean;
   /** 放大镜倍数 */
   magnifierZoom: number;
+  /** 取色器默认放大倍数（取色时可用 +/- 临时调整并回写） */
+  pickerZoom: number;
   /** 当前激活的功能 tab，持久化保存 */
   activeTab: ShortcutType;
   panel: PanelPosition | null;
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   highCompat: false,
   allEnabled: true,
   magnifierZoom: 2.4,
+  pickerZoom: 6,
   activeTab: 'drag',
   panel: null,
 };

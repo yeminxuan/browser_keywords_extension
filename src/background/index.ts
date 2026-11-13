@@ -129,6 +129,21 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
 
+  if (data?.type === 'capture-tab') {
+    // 取色器用：截取发送方所在窗口的可见区域
+    const windowId = sender.tab?.windowId;
+    const capture =
+      typeof windowId === 'number'
+        ? chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
+        : chrome.tabs.captureVisibleTab({ format: 'png' });
+    void capture
+      .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }),
+      );
+    return true;
+  }
+
   if (!data?.payload) return;
 
   const tabId = sender.tab?.id;

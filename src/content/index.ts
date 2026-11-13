@@ -12,6 +12,7 @@ import {
 import { simulateClick, simulateDrag, sleep } from './drag';
 import { panelStyles } from './styles';
 import { Magnifier } from './magnifier';
+import { ColorPicker } from './color-picker';
 
 const HOST_ID = 'drag-shortcut-root';
 const PANEL_WIDTH = 344;
@@ -23,6 +24,7 @@ const LIMITS = {
   areaStep: [1, 500],
   clickInterval: [0, 5000],
   magnifierZoom: [1.2, 6],
+  pickerZoom: [2, 24],
 } as const;
 
 const TAB_LABELS: Record<ShortcutType, string> = {
@@ -30,6 +32,7 @@ const TAB_LABELS: Record<ShortcutType, string> = {
   area: '区域点击',
   point: '定点点击',
   loupe: '放大镜',
+  picker: '取色',
 };
 
 const EMPTY_TEXT: Record<ShortcutType, string> = {
@@ -37,6 +40,7 @@ const EMPTY_TEXT: Record<ShortcutType, string> = {
   area: '还没有区域点击，点击上方按钮框选区域',
   point: '还没有定点点击，点击上方按钮拾取位置',
   loupe: '还没有放大镜快捷键，录一个按键即可随时开关放大镜',
+  picker: '还没有取色快捷键，录一个按键即可随时拾取鼠标位置的颜色',
 };
 
 interface GroupDraft {
@@ -126,6 +130,7 @@ class DragShortcutApp {
   private lastMouse: Point | null = null;
   private tabId: number | null = null;
   private magnifier: Magnifier | null = null;
+  private picker: ColorPicker | null = null;
 
   constructor() {
     this.host = document.createElement('div');
@@ -154,6 +159,13 @@ class DragShortcutApp {
     this.toastEl.className = 'ds-toast';
 
     this.magnifier = new Magnifier();
+    this.picker = new ColorPicker({
+      onPick: (hex) => this.toast(`已复制 ${hex}`),
+      onZoomChange: (zoom) => {
+        this.store.settings.pickerZoom = zoom;
+        void this.saveSettings();
+      },
+    });
 
     this.root.append(this.overlay, this.highlight, this.tip, this.panel, this.toastEl);
     document.documentElement.appendChild(this.host);
@@ -393,6 +405,12 @@ class DragShortcutApp {
         <label class="ds-row"><span>放大倍数（1.2 – 6）</span><input type="number" name="magnifierZoom" step="0.1" min="1.2" max="6" value="${settings.magnifierZoom}" /></label>`
         : '';
 
+    const pickerSettings =
+      active === 'picker'
+        ? `
+        <label class="ds-row"><span>取色默认倍数（2 – 24）</span><input type="number" name="pickerZoom" step="1" min="2" max="24" value="${settings.pickerZoom}" /></label>`
+        : '';
+
     this.panel.innerHTML = `
       <div class="ds-hd">
         <div class="ds-hd-title">快捷操作<span class="ds-hd-sub">${escapeHtml(summary)}</span></div>
@@ -407,6 +425,7 @@ class DragShortcutApp {
         ${dragSettings}
         ${areaSettings}
         ${loupeSettings}
+        ${pickerSettings}
         <label class="ds-check">
           <input type="checkbox" name="highCompat" ${settings.highCompat ? 'checked' : ''} />
           <span class="ds-check-text">
@@ -434,6 +453,8 @@ class DragShortcutApp {
         return '＋ 新建定点（录键 → 拾取位置）';
       case 'loupe':
         return '＋ 新建放大镜快捷键（录键即可）';
+      case 'picker':
+        return '＋ 新建取色快捷键（录键即可）';
     }
   }
 
@@ -456,8 +477,8 @@ class DragShortcutApp {
   private groupCardHtml(group: ShortcutGroup): string {
     const id = escapeHtml(group.id);
     const chips: string[] = [];
-    if (group.type === 'loupe') {
-      // 放大镜不需要坐标编辑按钮
+    if (group.type === 'loupe' || group.type === 'picker') {
+      // 放大镜 / 取色不需要坐标编辑按钮
     } else if (group.type === 'drag') {
       if (!group.dragFromCursor) {
         chips.push(`<button data-action="pick-start" data-id="${id}">改起点</button>`);
@@ -501,6 +522,9 @@ class DragShortcutApp {
   private groupMeta(group: ShortcutGroup): string {
     if (group.type === 'loupe') {
       return group.duration != null ? `放大镜 · 时长覆盖 ${group.duration}ms` : '放大镜 · 随时开关';
+    }
+    if (group.type === 'picker') {
+      return '取色 · 移动鼠标预览，点击复制 HEX';
     }
     if (group.type === 'drag') {
       if (!group.end) return '坐标未完成';
@@ -614,6 +638,7 @@ class DragShortcutApp {
       case 'steps':
       case 'areaStep':
       case 'clickInterval':
+      case 'pickerZoom':
         void this.updateNumberSetting(input.name, input);
         break;
       case 'magnifierZoom':
@@ -716,6 +741,29 @@ class DragShortcutApp {
         this.cancelWizard();
         return;
       }
+    }
+
+    // 取色器打开时：再按一次它的快捷键直接关闭；
+    // 其余按键（+/- 调倍数、Esc 取消等）交给取色器自己的监听器处理
+    if (this.picker?.isOpen) {
+      const key = normalizeKey(event);
+      const pickerKeys = new Set(
+        this.store.groups.filter((item) => item.enabled && item.type === 'picker').map((item) => item.key),
+      );
+      if (
+        key &&
+        pickerKeys.has(key) &&
+        !event.repeat &&
+        !event.isComposing &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.picker.close();
+      }
+      return;
     }
 
     if (this.wizard?.mode === 'record-key') {
@@ -1019,7 +1067,7 @@ class DragShortcutApp {
 
   private isDraftComplete(draft: GroupDraft): boolean {
     if (!draft.key) return false;
-    if (draft.type === 'loupe') return true;
+    if (draft.type === 'loupe' || draft.type === 'picker') return true;
     if (draft.type === 'drag') {
       if (draft.dragFromCursor) return Boolean(draft.end);
       return Boolean(draft.start && draft.end);
@@ -1118,7 +1166,7 @@ class DragShortcutApp {
   }
 
   private async updateNumberSetting(
-    name: 'duration' | 'holdAfterPress' | 'steps' | 'areaStep' | 'clickInterval',
+    name: 'duration' | 'holdAfterPress' | 'steps' | 'areaStep' | 'clickInterval' | 'pickerZoom',
     input: HTMLInputElement,
   ): Promise<void> {
     const [min, max] = LIMITS[name];
@@ -1235,6 +1283,13 @@ class DragShortcutApp {
       return;
     }
 
+    // 取色器也是交互式开关，不走 running 流程
+    if (group.type === 'picker') {
+      if (this.running || this.picking || this.wizard) return;
+      await this.openPicker();
+      return;
+    }
+
     if (this.running || this.picking || this.wizard) return;
     this.running = true;
     this.panel.style.pointerEvents = 'none';
@@ -1256,6 +1311,22 @@ class DragShortcutApp {
     } finally {
       this.running = false;
       this.panel.style.pointerEvents = '';
+    }
+  }
+
+  private async openPicker(): Promise<void> {
+    if (!this.picker || this.picker.isOpen) return;
+    // 截图前隐藏自己的面板，避免被拍进取色画面
+    this.host.style.visibility = 'hidden';
+    try {
+      const initial = this.lastMouse
+        ? { x: this.lastMouse.x - window.scrollX, y: this.lastMouse.y - window.scrollY }
+        : undefined;
+      await this.picker.open(this.store.settings.pickerZoom, initial);
+    } catch (error) {
+      this.toast(`取色失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.host.style.visibility = '';
     }
   }
 
