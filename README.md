@@ -56,6 +56,10 @@
 ### 界面深色模式
 面板跟随浏览器 / 系统的深浅色主题自动切换，无需手动设置。
 
+## 安装
+
+从 [Releases 发布页](https://github.com/yeminxuan/browser_keywords_extension/releases)下载所需版本的 `browser_keywords_extension-vX.Y.Z.zip` 并解压，然后打开 `chrome://extensions/` → 开启「开发者模式」→ 点击「加载已解压的扩展程序」→ 选择解压后的文件夹即可。免 npm、免构建，解压即用。
+
 ## 使用
 
 1. 点击工具栏上的扩展图标打开面板，选择功能 tab（拖拽点击 / 区域点击 / 定点点击 / 放大镜 / 取色 / 标尺测距）。

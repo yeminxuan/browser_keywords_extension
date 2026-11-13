@@ -56,6 +56,10 @@ By default, events are simulated inside the page, which works with most componen
 ### Dark mode
 The panel automatically follows the browser / system light or dark theme — no manual setting needed.
 
+## Install
+
+Download `browser_keywords_extension-vX.Y.Z.zip` of the version you need from the [Releases page](https://github.com/yeminxuan/browser_keywords_extension/releases) and unzip it. Then open `chrome://extensions/` → enable "Developer mode" → click "Load unpacked" → select the extracted folder. No npm, no build step — just unzip and load.
+
 ## Usage
 
 1. Click the extension icon in the toolbar to open the panel and pick a tab (Drag / Area / Point / Magnifier / Color picker / Ruler).
